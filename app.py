@@ -48,9 +48,14 @@ if page=='Montana Practice Table':
         st.caption('Exact turn bet and raise sizes were not recorded. Historical analysis only; no invented pot odds or EV.')
     st.subheader('Decision-dependent engine · foundation')
     if 'game' not in st.session_state: st.session_state.game=Game()
+    if 'practice_hand_number' not in st.session_state: st.session_state.practice_hand_number=1
+    if st.button('New practice hand', key='new_practice_hand'):
+        st.session_state.game=Game()
+        st.session_state.practice_session=db.start_session('montana_practice')
+        st.session_state.practice_hand_number+=1
+        st.rerun()
     game=st.session_state.game
-    if st.button('New practice hand'):
-        st.session_state.game=Game();st.session_state.practice_session=db.start_session('montana_practice');st.rerun()
+    st.info(f'Practice hand #{st.session_state.practice_hand_number} · New hand resets the betting state. Hole cards and board dealing are not yet implemented.')
     a,b,c=st.columns(3);a.metric('Pot (gross)',f'${game.pot:.2f}');b.metric('Hero remaining',f'${game.hero_stack:.2f}');c.metric('To call',f'${game.amount_to_call():.2f}')
     st.write(f'**Street:** {game.street} · **Turn:** {game.to_act} · **Pot cap:** $800 gross, including rake')
     if game.ended: st.success(game.outcome)
