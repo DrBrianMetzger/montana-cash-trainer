@@ -4,6 +4,7 @@ import streamlit as st
 from training_db import TrainingDB, uid, now
 from personas import DEFAULTS, default_profile, validate_profile, POSITIONS, RANGE_TYPES
 from game_engine import Game
+from table_ui import render_table
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
 
@@ -24,7 +25,7 @@ if not st.session_state.get('pb_db_loaded'):
     st.session_state.pb_db_loaded=True
 
 st.title('♠ Montana Cash Game Trainer')
-st.caption('Version 1.1 · historical study, prediction training, and shared data foundation')
+st.caption('Version 1.2 beta · multiway practice and House Shill foundation')
 sections=['Montana Practice Table','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
@@ -46,7 +47,9 @@ if page=='Montana Practice Table':
     with st.expander('Historical QQ hand — original exercise',expanded=True):
         st.write('UTG+1 opened to $6; CO called; hero 3-bet QQ from SB to $22; both called. Flop 5-6-7 rainbow: hero bet $20, both called. Turn 4: hero checked, UTG+1 bet, CO raised, hero folded. UTG+1 showed 78 and CO showed 88.')
         st.caption('Exact turn bet and raise sizes were not recorded. Historical analysis only; no invented pot odds or EV.')
-    st.subheader('Decision-dependent engine · foundation')
+    render_table(db)
+    st.divider()
+    st.subheader('Legacy heads-up engine · Version 1.1 (testing only)')
     if 'game' not in st.session_state: st.session_state.game=Game()
     if 'practice_hand_number' not in st.session_state: st.session_state.practice_hand_number=1
     if st.button('New practice hand', key='new_practice_hand'):
@@ -114,7 +117,7 @@ elif page=='Opponent Lab — coming next':
                 db.insert('personas',{'id':name,'name':name,'profile':json.dumps(profile),'updated_utc':now()},replace=True)
                 st.success('Profile saved in SQLite. Export a backup to preserve it across redeployments.')
             except (ValueError,TypeError,KeyError) as exc: st.error(str(exc))
-    st.info('The 13×13 range grid and playable opponents are reserved for the next release.')
+    st.info('The 13×13 range grid and calibrated opponent behavior remain future work. The playable table uses explicit heuristic actions.')
 elif page=='Leak Finder — coming next':
     st.header('Leak Finder · foundation')
     rows=db.rows('decisions')

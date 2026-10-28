@@ -25,3 +25,13 @@ def validate_profile(profile):
     for key,value in profile['tendencies'].items():
         if value is not None and not (0<=float(value)<=100): raise ValueError(f'{key} must be 0–100%')
     return copy.deepcopy(profile)
+
+# House shill is a dealer out of the box, playing with house funds.
+DEFAULTS['House Shill']=('Off-box dealer, house-funded, extremely tight and conspicuous premium value bets','house_shill')
+_original_default_profile=default_profile
+def default_profile(name):
+    profile=_original_default_profile(name)
+    if name=='House Shill':
+        profile['notes']='House-funded $200 buy-in; posts blinds; rare $200 rebuy; almost no bluffs. Editable assumptions, not solver outputs.'
+        profile['tendencies'].update(bluff_frequency=0.0,flop_cbet=10.0,turn_aggression=5.0,river_aggression=5.0)
+    return profile
