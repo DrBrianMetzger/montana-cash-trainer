@@ -93,3 +93,7 @@ else:
         st.rerun()
 st.divider()
 st.caption('All feedback is heuristic coaching, not calculated EV. The scenario always follows the documented hand, regardless of your chosen actions.')
+from gto_library import render_gto_library
+
+st.divider()
+render_gto_library()
