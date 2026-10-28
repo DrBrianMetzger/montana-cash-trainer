@@ -97,3 +97,7 @@ from gto_library import render_gto_library
 
 st.divider()
 render_gto_library()
+from pluribus_trainer import render_pluribus_trainer
+
+st.divider()
+render_pluribus_trainer()
