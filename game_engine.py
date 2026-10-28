@@ -1,0 +1,86 @@
+"""Conservative heads-up practice engine; refuses unresolved pot-cap wager procedures.
+
+No claim to be a full six-max rules engine. All betting amounts are in dollars.
+"""
+from dataclasses import dataclass, field
+
+CAP=800.0
+@dataclass
+class Game:
+    hero_stack:float=400.0
+    villain_stack:float=400.0
+    hero_contribution:float=1.0
+    villain_contribution:float=2.0
+    pot:float=3.0
+    street:str='Preflop'
+    board:list=field(default_factory=list)
+    to_act:str='hero'
+    last_bet:float=2.0
+    min_raise:float=2.0
+    hero_street:float=1.0
+    villain_street:float=2.0
+    ended:bool=False
+    outcome:str=''
+    history:list=field(default_factory=list)
+    pending_response:bool=False
+    checks:int=0
+    def __post_init__(self):
+        if self.hero_stack<2 or self.villain_stack<2: raise ValueError('Stacks must cover blinds')
+        self.hero_stack-=1;self.villain_stack-=2
+    def amount_to_call(self): return max(0,round(self.villain_street-self.hero_street,2))
+    def legal(self):
+        if self.ended or self.to_act!='hero': return []
+        call=self.amount_to_call()
+        opts=['Fold','Call'] if call>0 else ['Check']
+        if call==0 and self.hero_stack>0: opts+=['Bet']
+        if call>0 and self.hero_stack>call and self.villain_stack>0: opts+=['Raise']
+        return opts
+    def _pay(self,who,amount):
+        if amount<0: raise ValueError('Negative wager')
+        if self.pot+amount>=CAP-1e-9: raise ValueError('Cap wager procedure unresolved: no bet reaching or exceeding $800 is simulated')
+        if who=='hero':
+            if amount>self.hero_stack: raise ValueError('Insufficient hero stack')
+            self.hero_stack=round(self.hero_stack-amount,2);self.hero_street+=amount;self.hero_contribution+=amount
+        else:
+            if amount>self.villain_stack: raise ValueError('Insufficient opponent stack')
+            self.villain_stack=round(self.villain_stack-amount,2);self.villain_street+=amount;self.villain_contribution+=amount
+        self.pot=round(self.pot+amount,2)
+    def act(self,action,amount=None):
+        if action not in self.legal(): raise ValueError('Illegal action')
+        call=self.amount_to_call()
+        if action=='Fold': self.ended=True;self.outcome='Hero folded; hand ended';self.history.append('Hero folds');return
+        if action=='Check':
+            self.history.append('Hero checks');self.to_act='villain';self.pending_response=True;return
+        if action=='Call':
+            self._pay('hero',call);self.history.append(f'Hero calls ${call:g}');self.to_act='villain';self.pending_response=True;return
+        if amount is None: raise ValueError('Bet/raise amount required')
+        amount=round(float(amount),2)
+        if action=='Bet':
+            if amount<2: raise ValueError('Minimum opening bet is $2')
+            self._pay('hero',amount);self.last_bet=amount;self.min_raise=amount
+        else:
+            # amount is total hero street contribution, not additional chips
+            if amount<self.villain_street+self.min_raise: raise ValueError('Raise below minimum')
+            added=round(amount-self.hero_street,2)
+            if added<=call: raise ValueError('Not a raise')
+            self._pay('hero',added);self.min_raise=round(amount-self.villain_street,2)
+        self.history.append(f'Hero {action.lower()}s to ${self.hero_street:g} on {self.street}')
+        self.to_act='villain';self.pending_response=True
+    def opponent(self,action,amount=None):
+        """Explicit response selected by training controller; no fabricated persona strategy."""
+        if not self.pending_response or self.ended: raise ValueError('No opponent response pending')
+        to_call=max(0,round(self.hero_street-self.villain_street,2))
+        if action=='Fold': self.ended=True;self.outcome='Opponent folded; hero wins';self.history.append('Opponent folds')
+        elif action=='Call' and to_call>0:
+            self._pay('villain',to_call);self.history.append(f'Opponent calls ${to_call:g}');self.to_act='hero';self.pending_response=False;self._advance()
+        elif action=='Check' and to_call==0:
+            self.history.append('Opponent checks');self.to_act='hero';self.pending_response=False;self._advance()
+        elif action=='Bet' and to_call==0:
+            if amount is None or float(amount)<2: raise ValueError('Invalid opponent bet')
+            self._pay('villain',float(amount));self.min_raise=float(amount);self.history.append(f'Opponent bets ${amount:g}');self.to_act='hero';self.pending_response=False
+        else: raise ValueError('Illegal opponent response')
+    def _advance(self):
+        if self.street=='River': self.ended=True;self.outcome='River betting closed; showdown evaluation not implemented';return
+        streets=['Preflop','Flop','Turn','River'];self.street=streets[streets.index(self.street)+1]
+        self.hero_street=self.villain_street=0.0;self.min_raise=2.0;self.checks=0
+        self.history.append(f'{self.street} begins (board is not generated by this engine)')

@@ -1,103 +1,122 @@
-"""Montana Cash Game Trainer v1.0 — scripted demonstration, not a solver."""
+"""Montana Cash Game Trainer 1.1 — unified application."""
 import json
-import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
 import streamlit as st
-
-DB = Path(__file__).with_name('trainer.sqlite3')
-PERSONAS = {
-    'SantiNobu': 'GTO-oriented adaptive opponent (expert)',
-    'PedaltotheMetalLisa': 'Hyperaggressive barreler (advanced)',
-    'MoleculeMike': 'Tight, low-bluff conservative opponent (intermediate)',
-    'HelenaHomie': 'Positionally aware tight-aggressive regular (advanced)',
-}
-STREETS = [
-    {'street':'Preflop', 'board':[], 'pot':11, 'hero_stack':400, 'to_call':6,
-     'prompt':'UTG+1 opens to $6; cutoff calls. Hero is SB with Q♠ Q♥. Choose your action.',
-     'options':['Fold','Call $5','Raise to $22','Raise to $35'],
-     'feedback':{'Fold':'Too tight versus a small open and a call.', 'Call $5':'Calling keeps a strong value hand in a multiway pot out of position.', 'Raise to $22':'Value 3-bet, but sizing may invite two calls while out of position.', 'Raise to $35':'A larger isolation/value 3-bet can charge loose callers; the best size depends on their ranges.'}},
-    {'street':'Flop', 'board':['5♣','6♦','7♠'], 'pot':66, 'hero_stack':378, 'to_call':0,
-     'prompt':'Scripted line: Hero raised to $22 and both called. Flop 5♣ 6♦ 7♠. Hero acts first.',
-     'options':['Check','Bet $20','Bet $40'],
-     'feedback':{'Check':'Checking protects your checking range and controls a vulnerable multiway pot.', 'Bet $20':'Small c-bet may extract value but two opponents have substantial connectivity with this board.', 'Bet $40':'A larger bet builds a pot on a board that often favors callers; evaluate ranges carefully.'}},
-    {'street':'Turn', 'board':['5♣','6♦','7♠','4♥'], 'pot':126, 'hero_stack':358, 'to_call':0,
-     'prompt':'Scripted line: Hero bet $20 and both called. Turn 4♥. Hero acts first.',
-     'options':['Check','Bet $30','Bet $60'],
-     'feedback':{'Check':'Checking is prudent: any eight makes a straight, and multiway ranges are strong.', 'Bet $30':'Thin value/protection is difficult when many eight-x holdings beat QQ.', 'Bet $60':'A large bet risks value-owning yourself against strong continuing ranges.'}},
-    {'street':'Turn response', 'board':['5♣','6♦','7♠','4♥'], 'pot':126, 'hero_stack':358, 'to_call':None,
-     'prompt':'After Hero checks, UTG+1 bets and cutoff raises. Amounts were not recorded. Choose a response.',
-     'options':['Fold','Call (unpriced)','Raise (unpriced)'],
-     'feedback':{'Fold':'Reasonable fold against bet-plus-raise multiway strength on a four-straight board.', 'Call (unpriced)':'No exact pot odds can be calculated because bet and raise amounts are unknown.', 'Raise (unpriced)':'A raise faces exceptionally strong ranges; exact EV is not available.'}},
-]
-
-def init_db():
-    with sqlite3.connect(DB) as db:
-        db.execute('CREATE TABLE IF NOT EXISTS decisions (id INTEGER PRIMARY KEY, session_id TEXT, recorded_utc TEXT, persona TEXT, street TEXT, action TEXT, scripted_pot INTEGER, feedback TEXT)')
-
-def record(session_id, persona, stage, action, feedback):
-    with sqlite3.connect(DB) as db:
-        db.execute('INSERT INTO decisions (session_id,recorded_utc,persona,street,action,scripted_pot,feedback) VALUES (?,?,?,?,?,?,?)',
-                   (session_id, datetime.now(timezone.utc).isoformat(), persona, stage['street'], action, stage['pot'], feedback))
-
-def reset():
-    st.session_state.step = 0
-    st.session_state.answers = []
-    st.session_state.session_id = datetime.now(timezone.utc).isoformat()
-
-st.set_page_config(page_title='Montana Cash Game Trainer', page_icon='♠', layout='wide')
-init_db()
-if 'step' not in st.session_state:
-    reset()
-st.title('♠ Montana Cash Game Trainer')
-st.warning('VERSION 1.0 · SCRIPTED DEMONSTRATION — not a live betting engine, GTO solver, or Montana rules certification. Actions do not change the scripted future streets.')
-with st.sidebar:
-    st.header('Opponent Lab · Preview')
-    persona = st.selectbox('Study persona', list(PERSONAS))
-    st.caption(PERSONAS[persona])
-    st.info('Personas are selectable study labels in v1.0; they do not yet make autonomous decisions.')
-    if st.button('Restart exercise'):
-        reset()
-        st.rerun()
-    st.write('**Scenario:** $1/$2 · Hero SB · illustrative $400 starting stack')
-    st.write('**Rake:** excluded from illustrative pot totals')
-    st.write('**Pot cap:** $800, not yet enforced')
-
-step = st.session_state.step
-if step < len(STREETS):
-    stage = STREETS[step]
-    st.subheader(f'Decision {step+1}/{len(STREETS)} · {stage["street"]}')
-    st.markdown('''<div style="background:#12513b;border:9px solid #543b27;border-radius:100px;padding:30px;text-align:center;color:white;font-size:20px;line-height:2.2">
-    <div>UTG+1 &nbsp; ● &nbsp; $400 &nbsp;&nbsp;&nbsp;&nbsp; CO &nbsp; ● &nbsp; $400</div>
-    <div style="font-size:30px">{board}</div>
-    <div>Illustrative pot: ${pot}</div>
-    <div style="font-size:30px">Q♠ &nbsp; Q♥</div>
-    <div>HERO · SB &nbsp; | &nbsp; Scripted stack: ${stack}</div></div>'''.format(board=' '.join(stage['board']) or 'Preflop', pot=stage['pot'], stack=stage['hero_stack']), unsafe_allow_html=True)
-    st.write(stage['prompt'])
-    if stage['to_call'] is None:
-        st.caption('Original turn wager amounts are unknown. No exact legal sizing or pot odds are implied.')
-    action = st.radio('Choose an action', stage['options'], key=f'action_{step}')
-    if st.button('Submit decision', type='primary'):
-        feedback = stage['feedback'][action]
-        record(st.session_state.session_id, persona, stage, action, feedback)
-        st.session_state.answers.append({'street':stage['street'], 'action':action, 'feedback':feedback})
-        st.session_state.step += 1
-        st.rerun()
-else:
-    st.success('Exercise completed. Recorded decisions:')
-    for a in st.session_state.answers:
-        st.markdown(f'**{a["street"]} — {a["action"]}**  \n{a["feedback"]}')
-    st.info('Actual showdown: UTG+1 held 7-8; cutoff held 8-8. Both had an eight-high straight on 5-6-7-4. Results do not determine whether earlier decisions were correct.')
-    if st.button('Practice again'):
-        reset()
-        st.rerun()
-st.divider()
-st.caption('All feedback is heuristic coaching, not calculated EV. The scenario always follows the documented hand, regardless of your chosen actions.')
-from gto_library import render_gto_library
-
-st.divider()
-render_gto_library()
+from training_db import TrainingDB, uid, now
+from personas import DEFAULTS, default_profile, validate_profile, POSITIONS, RANGE_TYPES
+from game_engine import Game
 from pluribus_trainer import render_pluribus_trainer
+from gto_library import render_gto_library, KEY as GTO_KEY
 
-st.divider()
-render_pluribus_trainer()
+st.set_page_config(page_title='Montana Cash Game Trainer',page_icon='♠',layout='wide')
+db=TrainingDB()
+
+# Existing modules keep their own widget/session state; DB mirrors their durable records.
+if 'pb_results' not in st.session_state: st.session_state.pb_results={}
+if GTO_KEY not in st.session_state: st.session_state[GTO_KEY]=db.references()
+if 'pb_session' not in st.session_state: st.session_state.pb_session=db.start_session('pluribus_prediction')
+if 'gto_session' not in st.session_state: st.session_state.gto_session=db.start_session('gto_exact')
+if 'practice_session' not in st.session_state: st.session_state.practice_session=db.start_session('montana_practice')
+
+# Restore saved Pluribus predictions into the original module's session state.
+if not st.session_state.get('pb_db_loaded'):
+    for r in db.rows('pluribus_predictions'):
+        st.session_state.pb_results[r['hand_key']]={'guess':r['guess'],'actual':r['actual'],'street':r['street'],'hand':r['hand_key'].split('|')[0]}
+    st.session_state.pb_db_loaded=True
+
+st.title('♠ Montana Cash Game Trainer')
+st.caption('Version 1.1 · historical study, prediction training, and shared data foundation')
+sections=['Montana Practice Table','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
+with st.sidebar:
+    st.header('Training rooms')
+    page=st.radio('Navigate',sections,key='navigation')
+    st.divider()
+    st.caption('Local SQLite storage on Streamlit Community Cloud is temporary. Export backups regularly.')
+    st.download_button('Download complete backup',db.backup(),file_name='montana_training_backup.json',mime='application/json')
+    uploaded=st.file_uploader('Restore complete backup',type=['json'],key='full_restore')
+    if uploaded and st.button('Restore shared database'):
+        try:
+            count=db.restore(uploaded.getvalue());st.session_state[GTO_KEY]=db.references()
+            st.session_state.pb_db_loaded=False
+            st.success(f'Merged {count} records; reload to refresh predictions.')
+        except (ValueError,TypeError,KeyError,json.JSONDecodeError) as exc: st.error(str(exc))
+
+if page=='Montana Practice Table':
+    st.header('Montana Practice Table')
+    st.warning('The original QQ hand is preserved as a historical review, not an interactive replay. The small engine below is a separate rules-tested heads-up foundation, not a complete Montana multiway simulator.')
+    with st.expander('Historical QQ hand — original exercise',expanded=True):
+        st.write('UTG+1 opened to $6; CO called; hero 3-bet QQ from SB to $22; both called. Flop 5-6-7 rainbow: hero bet $20, both called. Turn 4: hero checked, UTG+1 bet, CO raised, hero folded. UTG+1 showed 78 and CO showed 88.')
+        st.caption('Exact turn bet and raise sizes were not recorded. Historical analysis only; no invented pot odds or EV.')
+    st.subheader('Decision-dependent engine · foundation')
+    if 'game' not in st.session_state: st.session_state.game=Game()
+    game=st.session_state.game
+    if st.button('New practice hand'):
+        st.session_state.game=Game();st.session_state.practice_session=db.start_session('montana_practice');st.rerun()
+    a,b,c=st.columns(3);a.metric('Pot (gross)',f'${game.pot:.2f}');b.metric('Hero remaining',f'${game.hero_stack:.2f}');c.metric('To call',f'${game.amount_to_call():.2f}')
+    st.write(f'**Street:** {game.street} · **Turn:** {game.to_act} · **Pot cap:** $800 gross, including rake')
+    if game.ended: st.success(game.outcome)
+    elif game.to_act=='hero':
+        options=game.legal();choice=st.selectbox('Hero action',options)
+        amount=None
+        if choice in ('Bet','Raise'):
+            minimum=2.0 if choice=='Bet' else game.villain_street+game.min_raise
+            amount=st.number_input('Bet amount (bet: dollars; raise: total street contribution)',min_value=float(minimum),value=float(minimum),step=1.0)
+        if st.button('Apply hero action',type='primary'):
+            try:
+                before={'pot':game.pot,'to_call':game.amount_to_call(),'street':game.street}
+                game.act(choice,amount)
+                db.decision(st.session_state.practice_session,'montana_practice',before['street'],choice,dict(before,amount=amount,after_pot=game.pot),hand_id=None)
+                st.rerun()
+            except ValueError as exc: st.error(str(exc))
+    else:
+        st.info('Select a scripted opponent response for engine testing. Personas do not yet act autonomously.')
+        to_call=max(0,game.hero_street-game.villain_street)
+        response=st.selectbox('Opponent response', ['Fold','Call'] if to_call>0 else ['Check','Bet'])
+        opp_amount=st.number_input('Opponent bet ($)',min_value=2.0,value=2.0) if response=='Bet' else None
+        if st.button('Apply opponent response'):
+            try: game.opponent(response,opp_amount);st.rerun()
+            except ValueError as exc: st.error(str(exc))
+    st.code('\n'.join(game.history) or 'No actions yet',language=None)
+    st.caption('No automatic board runout, rake deduction, multiway opponent logic, or cap-overflow handling is claimed in this foundation.')
+elif page=='Pluribus Prediction Trainer':
+    render_pluribus_trainer()
+    # Original trainer writes session state on reveal; synchronize by stable hand/action key.
+    for key,r in st.session_state.pb_results.items():
+        db.save_prediction(st.session_state.pb_session,key,r['guess'],r['actual'],r['street'],{'hand':r.get('hand')})
+elif page=='GTO+ Strategy Library':
+    render_gto_library()
+    for item in st.session_state[GTO_KEY]: db.save_reference(item)
+    st.caption('References are mirrored to the shared SQLite database. GTO exact-practice decisions are not scored as EV loss without verified EV data.')
+elif page=='Opponent Lab — coming next':
+    st.header('Opponent Lab · profile editor foundation')
+    name=st.selectbox('Opponent',list(DEFAULTS))
+    saved={r['id']:json.loads(r['profile']) for r in db.rows('personas')}
+    profile=saved.get(name,default_profile(name))
+    with st.form(f'profile_{name}'):
+        description=st.text_input('Description',value=profile['description'])
+        notes=st.text_area('Notes',value=profile.get('notes',''))
+        pos=st.selectbox('Position',POSITIONS)
+        ranges={kind:st.text_input(kind.replace('_',' ').title()+' range (text, not validated by solver)',value=profile['ranges'][pos][kind]) for kind in RANGE_TYPES}
+        st.caption('Leave tendencies blank when not measured. Values are percentages, not GTO outputs.')
+        tendencies={k:st.text_input(k.replace('_',' ').title()+' (%)',value='' if v is None else str(v)) for k,v in profile['tendencies'].items()}
+        adapt=st.checkbox('Allow future adaptation',value=profile['adaptation']['enabled'])
+        speed=st.slider('Future adaptation speed',0.0,1.0,float(profile['adaptation']['speed']),0.05)
+        if st.form_submit_button('Save profile'):
+            try:
+                profile['description']=description;profile['notes']=notes;profile['ranges'][pos].update(ranges)
+                profile['tendencies']={k:(float(v) if v.strip() else None) for k,v in tendencies.items()}
+                profile['adaptation'].update(enabled=adapt,speed=speed)
+                validate_profile(profile)
+                db.insert('personas',{'id':name,'name':name,'profile':json.dumps(profile),'updated_utc':now()},replace=True)
+                st.success('Profile saved in SQLite. Export a backup to preserve it across redeployments.')
+            except (ValueError,TypeError,KeyError) as exc: st.error(str(exc))
+    st.info('The 13×13 range grid and playable opponents are reserved for the next release.')
+elif page=='Leak Finder — coming next':
+    st.header('Leak Finder · foundation')
+    rows=db.rows('decisions')
+    st.write(f'{len(rows)} decisions recorded in the shared database.')
+    for source in ('montana_practice','pluribus_prediction','gto_exact','live_review'):
+        st.metric(source.replace('_',' ').title(),sum(r['source']==source for r in rows))
+    st.caption('Sources remain separate. Pluribus prediction accuracy is not poker EV; GTO frequency is not EV loss.')
+else:
+    st.header('Study Academy · coming later')
+    st.info('Curriculum and guided lessons are reserved for a later release.')
