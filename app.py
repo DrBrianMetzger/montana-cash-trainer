@@ -5,6 +5,7 @@ from training_db import TrainingDB, uid, now
 from personas import DEFAULTS, default_profile, validate_profile, POSITIONS, RANGE_TYPES
 from game_engine import Game
 from table_ui import render_table
+from table_experience import render_practice_shell
 from cash_lessons import render_cash_lessons
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
@@ -26,7 +27,7 @@ if not st.session_state.get('pb_db_loaded'):
     st.session_state.pb_db_loaded=True
 
 st.title('♠ Montana Cash Game Trainer')
-st.caption('Version 1.3 · playable table, guided cash lessons, Pluribus and GTO+ study')
+st.caption('Version 1.4 · poker-table experience, coaching journal, lessons, Pluribus and GTO+')
 sections=['Montana Practice Table','Cash Game Lessons','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
@@ -43,49 +44,44 @@ with st.sidebar:
         except (ValueError,TypeError,KeyError,json.JSONDecodeError) as exc: st.error(str(exc))
 
 if page=='Montana Practice Table':
-    st.header('Montana Practice Table')
-    st.info('The original QQ hand remains a historical review. The playable eight-handed table below is experimental; opponent decisions are heuristics, not solver-derived GTO.')
-    with st.expander('Historical QQ hand — original exercise',expanded=True):
-        st.write('UTG+1 opened to $6; CO called; hero 3-bet QQ from SB to $22; both called. Flop 5-6-7 rainbow: hero bet $20, both called. Turn 4: hero checked, UTG+1 bet, CO raised, hero folded. UTG+1 showed 78 and CO showed 88.')
-        st.caption('Exact turn bet and raise sizes were not recorded. Historical analysis only; no invented pot odds or EV.')
-    render_table(db)
-    st.divider()
-    st.subheader('Legacy heads-up engine · Version 1.1 (testing only)')
-    if 'game' not in st.session_state: st.session_state.game=Game()
-    if 'practice_hand_number' not in st.session_state: st.session_state.practice_hand_number=1
-    if st.button('New practice hand', key='new_practice_hand'):
-        st.session_state.game=Game()
-        st.session_state.practice_session=db.start_session('montana_practice')
-        st.session_state.practice_hand_number+=1
-        st.rerun()
-    game=st.session_state.game
-    st.info(f'Practice hand #{st.session_state.practice_hand_number} · New hand resets the betting state. Hole cards and board dealing are not yet implemented.')
-    a,b,c=st.columns(3);a.metric('Pot (gross)',f'${game.pot:.2f}');b.metric('Hero remaining',f'${game.hero_stack:.2f}');c.metric('To call',f'${game.amount_to_call():.2f}')
-    st.write(f'**Street:** {game.street} · **Turn:** {game.to_act} · **Pot cap:** $800 gross, including rake')
-    if game.ended: st.success(game.outcome)
-    elif game.to_act=='hero':
-        options=game.legal();choice=st.selectbox('Hero action',options)
-        amount=None
-        if choice in ('Bet','Raise'):
-            minimum=2.0 if choice=='Bet' else game.villain_street+game.min_raise
-            amount=st.number_input('Bet amount (bet: dollars; raise: total street contribution)',min_value=float(minimum),value=float(minimum),step=1.0)
-        if st.button('Apply hero action',type='primary'):
-            try:
-                before={'pot':game.pot,'to_call':game.amount_to_call(),'street':game.street}
-                game.act(choice,amount)
-                db.decision(st.session_state.practice_session,'montana_practice',before['street'],choice,dict(before,amount=amount,after_pot=game.pot),hand_id=None)
-                st.rerun()
-            except ValueError as exc: st.error(str(exc))
-    else:
-        st.info('Select a scripted opponent response for engine testing. Personas do not yet act autonomously.')
-        to_call=max(0,game.hero_street-game.villain_street)
-        response=st.selectbox('Opponent response', ['Fold','Call'] if to_call>0 else ['Check','Bet'])
-        opp_amount=st.number_input('Opponent bet ($)',min_value=2.0,value=2.0) if response=='Bet' else None
-        if st.button('Apply opponent response'):
-            try: game.opponent(response,opp_amount);st.rerun()
-            except ValueError as exc: st.error(str(exc))
-    st.code('\n'.join(game.history) or 'No actions yet',language=None)
-    st.caption('No automatic board runout, rake deduction, multiway opponent logic, or cap-overflow handling is claimed in this foundation.')
+    render_practice_shell(db, render_table)
+    if st.checkbox('Show legacy heads-up engine (developer testing)', value=False):
+        st.subheader('Legacy heads-up engine · Version 1.1 (testing only)')
+        if 'game' not in st.session_state: st.session_state.game=Game()
+        if 'practice_hand_number' not in st.session_state: st.session_state.practice_hand_number=1
+        if st.button('New practice hand', key='new_practice_hand'):
+            st.session_state.game=Game()
+            st.session_state.practice_session=db.start_session('montana_practice')
+            st.session_state.practice_hand_number+=1
+            st.rerun()
+        game=st.session_state.game
+        st.info(f'Practice hand #{st.session_state.practice_hand_number} · New hand resets the betting state. Hole cards and board dealing are not yet implemented.')
+        a,b,c=st.columns(3);a.metric('Pot (gross)',f'${game.pot:.2f}');b.metric('Hero remaining',f'${game.hero_stack:.2f}');c.metric('To call',f'${game.amount_to_call():.2f}')
+        st.write(f'**Street:** {game.street} · **Turn:** {game.to_act} · **Pot cap:** $800 gross, including rake')
+        if game.ended: st.success(game.outcome)
+        elif game.to_act=='hero':
+            options=game.legal();choice=st.selectbox('Hero action',options)
+            amount=None
+            if choice in ('Bet','Raise'):
+                minimum=2.0 if choice=='Bet' else game.villain_street+game.min_raise
+                amount=st.number_input('Bet amount (bet: dollars; raise: total street contribution)',min_value=float(minimum),value=float(minimum),step=1.0)
+            if st.button('Apply hero action',type='primary'):
+                try:
+                    before={'pot':game.pot,'to_call':game.amount_to_call(),'street':game.street}
+                    game.act(choice,amount)
+                    db.decision(st.session_state.practice_session,'montana_practice',before['street'],choice,dict(before,amount=amount,after_pot=game.pot),hand_id=None)
+                    st.rerun()
+                except ValueError as exc: st.error(str(exc))
+        else:
+            st.info('Select a scripted opponent response for engine testing. Personas do not yet act autonomously.')
+            to_call=max(0,game.hero_street-game.villain_street)
+            response=st.selectbox('Opponent response', ['Fold','Call'] if to_call>0 else ['Check','Bet'])
+            opp_amount=st.number_input('Opponent bet ($)',min_value=2.0,value=2.0) if response=='Bet' else None
+            if st.button('Apply opponent response'):
+                try: game.opponent(response,opp_amount);st.rerun()
+                except ValueError as exc: st.error(str(exc))
+        st.code('\n'.join(game.history) or 'No actions yet',language=None)
+        st.caption('No automatic board runout, rake deduction, multiway opponent logic, or cap-overflow handling is claimed in this foundation.')
 elif page=='Cash Game Lessons':
     render_cash_lessons(db)
 elif page=='Pluribus Prediction Trainer':
