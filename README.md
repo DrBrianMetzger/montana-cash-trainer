@@ -1,31 +1,41 @@
-# Montana Cash Game Trainer — Version 1.2 beta
+# Montana Cash Game Trainer — v1.3 lesson-room add-on
 
-This release extends the deployed v1.1 app without replacing its Pluribus and GTO+ modules.
+## Why this is an add-on rather than a replacement `app.py`
+The current deployed v1.2 beta includes an eight-handed playable table. Its actual source files were **not supplied** in this turn. The only available full application source is the older v1.1 archive. Replacing your current `app.py` with a rebuilt v1.1 file would erase the v1.2 playable table. This release therefore provides a self-contained v1.3 lesson room that can be added to the existing navigation **without replacing the existing engine or modules**.
 
-## New: experimental multiway practice
-- 4–9 seats; default 8.
-- Optional **Add House Shill** checkbox, occupying an existing seat. The shill is a dealer out of the box, with $200 house-funded buy-in, blinds, conservative heuristics, and automatic $200 rebuy when broke. House funding and rake are displayed separately.
-- Hole cards, board cards, rotating button/blinds, betting streets, fold/call/check/bet/raise, recorded hero decisions, high-hand evaluation, simple side-pot settlement, and 10% rake capped at $6.
-- Announced wagers and effective wagers are displayed separately. Gross pot is capped at $800, including rake.
+## Install (GitHub web interface)
+1. Back up your current Streamlit data using the application's **Download complete backup** button.
+2. Upload `cash_lessons.py` into the repository root (same folder as `app.py`).
+3. Edit the **existing v1.2** `app.py` in GitHub. Add this import alongside its other imports:
 
-**Beta limitations:** Multiway betting, partial all-ins, uncalled bet returns, cap allocation, and legal raise reopening are simplified. Do not use this as an authoritative Montana casino payout calculator. Opponent decisions are deliberately basic heuristics, not solver-based or calibrated; opponent tendencies entered in Opponent Lab do not yet drive the table. This is not yet the promised graphical 13×13 range editor. The house shill's displayed net is the simulated stack minus cumulative house funding, not a business profit-and-loss statement.
+   `from cash_lessons import render_cash_lessons`
 
-## Preserved
-- Historical QQ review and original heads-up engine (legacy testing).
-- Pluribus Prediction Trainer, hand imports, accuracy and database mirror.
-- GTO+ screenshot library, reference uploads, exact practice, JSON backup and restore.
-- SQLite database, separate decision sources, Opponent Lab text profile editor, Leak Finder foundation.
+4. Add `'Cash Game Lessons'` to the existing left-sidebar navigation options. Keep every existing option intact.
+5. In the existing page-selection `if` / `elif` chain, add a new branch **before** the final `else`:
 
-## Deploy from GitHub browser
-1. Export a full database backup and GTO+ library JSON from your currently running app. Local Streamlit Community Cloud SQLite is **not durable**.
-2. Download and extract the release ZIP.
-3. In the GitHub repository root, upload all files from inside `montana-v1_2` (including `table_engine.py` and `table_ui.py`), replacing the existing `app.py`, `personas.py`, and other files. Do not nest the directory in the repo.
-4. Commit changes to the branch used by Streamlit Community Cloud. Its main file remains `app.py`.
-5. Open your app, use the Montana Practice Table, set eight seats and check Add House Shill, then click Start / reset table.
-6. After a redeploy, restore your full database backup if necessary. The original GTO+ library also supports its own JSON restore.
+   ```python
+   elif page == 'Cash Game Lessons':
+       render_cash_lessons(db)
+   ```
 
-## Local automated checks
-`python -m pytest -q` (pytest included in requirements).
+   This assumes the v1.2 app retains the v1.1 `db = TrainingDB()` variable. If the database object has been renamed, pass the new variable; alternatively `render_cash_lessons()` runs without database logging (session feedback only).
+6. Commit changes and refresh Streamlit.
 
-## Next milestone
-Graphical 13×13 range editor, configurable preflop/3-bet ranges wired to opponent actions, improved live pot-cap semantics and realistic multiway action order.
+## What this release does
+- Adds three lesson categories: Preflop Discipline, 3-Bet and 4-Bet Pots, Multiway Postflop Play.
+- Offers 10 defined study spots, guided or randomized within each category.
+- Shows hero hand, position, pot, stack, board, context, and explicit actions.
+- Locks a decision before showing action-specific coaching and a transferable takeaway.
+- Saves each completed lesson decision into the existing shared SQLite `decisions` table with source `montana_practice` and context tag `trainer=cash_lessons_v1.3`.
+- Keeps lesson records distinct from Pluribus prediction and GTO+ solver exercises.
+- Works with existing database full-backup JSON; SQLite remains ephemeral on Streamlit Community Cloud.
+
+## Limits
+- Scenarios are fixed decision spots, not a dynamically played full hand. Your current v1.2 Practice Table remains the free-play area.
+- The coaching is qualitative, not a solver output, estimated EV, or universal optimal strategy.
+- Scenario pot figures are approximate gross chip amounts before any rake adjustment; these lessons do not attempt to simulate rake/cap edge cases.
+- Opponent Lab's 13×13 range editor and true range-driven opponents are not part of v1.3.
+- Full deployment verification requires testing in your actual Streamlit application.
+
+## Tests
+Run `python -m pytest tests/test_lessons.py` in an environment with `pytest` and `streamlit` installed. Existing application tests should also be run after merging.
