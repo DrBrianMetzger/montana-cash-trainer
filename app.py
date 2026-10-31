@@ -5,6 +5,7 @@ from training_db import TrainingDB, uid, now
 from personas import DEFAULTS, default_profile, validate_profile, POSITIONS, RANGE_TYPES
 from game_engine import Game
 from table_ui import render_table
+from cash_lessons import render_cash_lessons
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
 
@@ -25,8 +26,8 @@ if not st.session_state.get('pb_db_loaded'):
     st.session_state.pb_db_loaded=True
 
 st.title('♠ Montana Cash Game Trainer')
-st.caption('Version 1.2 beta · multiway practice and House Shill foundation')
-sections=['Montana Practice Table','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
+st.caption('Version 1.3 · playable table, guided cash lessons, Pluribus and GTO+ study')
+sections=['Montana Practice Table','Cash Game Lessons','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
     page=st.radio('Navigate',sections,key='navigation')
@@ -43,7 +44,7 @@ with st.sidebar:
 
 if page=='Montana Practice Table':
     st.header('Montana Practice Table')
-    st.warning('The original QQ hand is preserved as a historical review, not an interactive replay. The small engine below is a separate rules-tested heads-up foundation, not a complete Montana multiway simulator.')
+    st.info('The original QQ hand remains a historical review. The playable eight-handed table below is experimental; opponent decisions are heuristics, not solver-derived GTO.')
     with st.expander('Historical QQ hand — original exercise',expanded=True):
         st.write('UTG+1 opened to $6; CO called; hero 3-bet QQ from SB to $22; both called. Flop 5-6-7 rainbow: hero bet $20, both called. Turn 4: hero checked, UTG+1 bet, CO raised, hero folded. UTG+1 showed 78 and CO showed 88.')
         st.caption('Exact turn bet and raise sizes were not recorded. Historical analysis only; no invented pot odds or EV.')
@@ -85,6 +86,8 @@ if page=='Montana Practice Table':
             except ValueError as exc: st.error(str(exc))
     st.code('\n'.join(game.history) or 'No actions yet',language=None)
     st.caption('No automatic board runout, rake deduction, multiway opponent logic, or cap-overflow handling is claimed in this foundation.')
+elif page=='Cash Game Lessons':
+    render_cash_lessons(db)
 elif page=='Pluribus Prediction Trainer':
     render_pluribus_trainer()
     # Original trainer writes session state on reveal; synchronize by stable hand/action key.
@@ -127,4 +130,4 @@ elif page=='Leak Finder — coming next':
     st.caption('Sources remain separate. Pluribus prediction accuracy is not poker EV; GTO frequency is not EV loss.')
 else:
     st.header('Study Academy · coming later')
-    st.info('Curriculum and guided lessons are reserved for a later release.')
+    st.info('The first three guided lessons are available under Cash Game Lessons. Expanded curriculum is future work.')
