@@ -8,9 +8,10 @@ from table_ui import render_table
 from table_experience import render_practice_shell
 from cash_lessons import render_cash_lessons
 from helena_course import render_helena_course
+from adaptive_drills import render_adaptive_drills
+from solver_explorer import render_solver_explorer
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
-from solver_explorer import render_solver_explorer
 
 st.set_page_config(page_title='Montana Cash Game Trainer',page_icon='♠',layout='wide')
 db=TrainingDB()
@@ -29,8 +30,8 @@ if not st.session_state.get('pb_db_loaded'):
     st.session_state.pb_db_loaded=True
 
 st.title('♠ Montana Cash Game Trainer')
-st.caption('Version 1.6 · solver explorer added to the existing training rooms')
-sections=['Montana Practice Table','Cash Game Lessons','Helena Cash Course','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
+st.caption('Version 1.7 · adaptive drills, Helena course, visual table, Pluribus and solver explorer')
+sections=['Montana Practice Table','Cash Game Lessons','Helena Cash Course','Adaptive Drills','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
     page=st.radio('Navigate',sections,key='navigation')
@@ -88,18 +89,20 @@ elif page=='Cash Game Lessons':
     render_cash_lessons(db)
 elif page=='Helena Cash Course':
     render_helena_course(db)
+elif page=='Adaptive Drills':
+    render_adaptive_drills(db)
 elif page=='Pluribus Prediction Trainer':
     render_pluribus_trainer()
     # Original trainer writes session state on reveal; synchronize by stable hand/action key.
     for key,r in st.session_state.pb_results.items():
         db.save_prediction(st.session_state.pb_session,key,r['guess'],r['actual'],r['street'],{'hand':r.get('hand')})
 elif page=='GTO+ Strategy Library':
-    library_tab,solver_tab=st.tabs(['Screenshot Library','Solver Explorer'])
-    with library_tab:
+    mode=st.radio('GTO+ Training Tools',['Screenshot Library','Solver Explorer'],horizontal=True,key='gto_tool_mode')
+    if mode=='Screenshot Library':
         render_gto_library()
         for item in st.session_state[GTO_KEY]: db.save_reference(item)
-        st.caption('Screenshot references are stored separately from imported structured solver data.')
-    with solver_tab:
+        st.caption('Screenshot references are not machine-readable solver solutions. GTO accuracy and EV require verified data.')
+    else:
         render_solver_explorer()
 elif page=='Opponent Lab — coming next':
     st.header('Opponent Lab · profile editor foundation')
