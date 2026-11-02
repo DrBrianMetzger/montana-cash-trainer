@@ -6,6 +6,7 @@ import html
 import json
 import random
 import uuid
+import re
 from dataclasses import dataclass
 import streamlit as st
 
@@ -49,20 +50,59 @@ def card_html(card):
     rank=card[:-1] if suit else card
     return f'<span class="hc-card" style="color:{SUITS.get(suit,"#111827")}">{html.escape(rank+suit)}</span>'
 
+def _suit_shuffle(text, rng):
+    """Permute all four suits consistently in hole cards and board."""
+    suits=list(SUITS)
+    shuffled=suits[:]
+    rng.shuffle(shuffled)
+    translation=dict(zip(suits, shuffled))
+    return ''.join(translation.get(c,c) for c in text)
+
+
 def scenario(seed:int, lesson:str, variant:int=0):
-    """Deterministic generation for replay/tests; avoid exact repeats until deck exhaustion."""
+    """Reproducible, labeled hypothetical drills; no solver-based EV."""
     if lesson not in LESSONS: raise ValueError('Unknown lesson')
     rng=random.Random(seed)
     idx=variant%len(LESSONS[lesson])
     street,hand,board,position,question,actions,baseline,reason=LESSONS[lesson][idx]
     persona=next((name for name in PERSONAS if name in question), rng.choice(PERSONAS))
-    stack=rng.choice((120,200,300,400,500))
-    # Do not vary specific dollar amounts in the text: doing so would create inconsistent pots.
-    # These are scenario labels, not fully reconstructed hand histories.
+    stack=rng.choice((200,300,400,500))
+    # Suit permutations create legitimate new card presentations while preserving
+    # rank texture and relative suit relationships (e.g., a rainbow board).
+    suits=list(SUITS); shuffled=suits[:]; rng.shuffle(shuffled)
+    trans=str.maketrans(dict(zip(suits,shuffled)))
+    hand=hand.translate(trans)
+    board=board.translate(trans)
     return dict(id=f'{seed}:{variant}',lesson=lesson,street=street,hand=hand,board=board,
                 position=position,question=question,actions=actions,baseline=baseline,
-                reason=reason,persona=persona,stack=stack,
-                pot=None, hypothetical=True)
+                reason=reason,persona=persona,stack=stack,pot=None,hypothetical=True,
+                drill_type='qualitative',tag=lesson)
+
+
+def a4_scenario(seed:int, stage:str='Preflop'):
+    """Two-stage A4s training with explicitly hypothetical missing hand details."""
+    rng=random.Random(seed)
+    position=rng.choice(('CO','HJ'))
+    stack=rng.choice((200,400))
+    villain='HelenaHomie'
+    hand='A♠ 4♠'; board='K♦ J♣ 9♥'
+    if stage=='Preflop':
+        return dict(id=f'a4:{seed}:pre',lesson='A4s versus a tight 3-bettor',
+            street='Preflop',hand=hand,board='',position=position,persona=villain,
+            stack=stack,pot=36,drill_type='a4',tag='3bet_defense',hypothetical=True,
+            question=f'HYPOTHETICAL: You opened to $8 from {position}; BTN 3-bet to $25. Blinds folded. You have ${stack} effective. Pot is $36 including your $8. Call costs $17. Assume BTN 3-bets TT+, AQ+.',
+            actions=('Fold','Call $17','4-bet to $75'),baseline='Fold',
+            reason='Folding is a defensible exploit against a very tight linear 3-bet. Calling needs sufficient realization and implied odds; a light 4-bet needs fold equity. This is not a solver result.')
+    if stage!='Flop': raise ValueError('Unknown A4 stage')
+    bet=rng.choice((18,53))
+    # Preflop: two players put $25 each plus $1/$2 dead blinds => $53 gross.
+    # Hero checks; villain bets 18 or 53. Gross pot now 53+bet.
+    return dict(id=f'a4:{seed}:flop',lesson='A4s versus a tight 3-bettor',
+        street='Flop',hand=hand,board=board,position=position,persona=villain,
+        stack=stack-25,pot=53+bet,drill_type='a4',tag='underbluff_response',hypothetical=True,
+        question=f'HYPOTHETICAL: You called the $25 3-bet from {position} with A4s, then checked K-J-9 rainbow. BTN bets ${bet} into $53. Gross pot now ${53+bet}. Assume a tight, value-heavy betting range. What do you do?',
+        actions=('Fold',f'Call ${bet}',f'Raise to ${bet*3}'),baseline='Fold',
+        reason='A4s has ace-high with little immediate equity on K-J-9 rainbow. Against a value-heavy continuation range, folding is a reasonable baseline. Reassess if the bettor has sufficient bluffs. A preflop mistake does not require a flop bluff.')
 
 def visual_table(s):
     board=''.join(card_html(c) for c in s['board'].split()) if s['board'] else '<span class="hc-muted">Preflop · no board</span>'
@@ -83,13 +123,16 @@ def _new_hand(lesson):
     k='hc_serial'; st.session_state[k]=st.session_state.get(k,0)+1
     # seed is random, and serial ensures different situation selection when possible
     seed=random.SystemRandom().randrange(1,2**31)
-    st.session_state['hc_hand']=scenario(seed,lesson,st.session_state[k])
+    if lesson=='A4s versus a tight 3-bettor':
+        st.session_state['hc_hand']=a4_scenario(seed,'Preflop' if st.session_state[k]%2 else 'Flop')
+    else:
+        st.session_state['hc_hand']=scenario(seed,lesson,st.session_state[k])
     st.session_state['hc_answer']=None
 
 def render_helena_course(db):
     st.header(TITLE)
     st.caption('Interactive decision drills · hypothetical variations · no solver-backed EV claims')
-    lesson=st.selectbox('Choose a lesson',list(LESSONS),key='hc_lesson')
+    lesson=st.selectbox('Choose a lesson',list(LESSONS)+['A4s versus a tight 3-bettor'],key='hc_lesson')
     a,b=st.columns([1,2]); a.metric('Lessons',len(LESSONS))
     try:
         records=[r for r in db.rows('decisions') if r['source']=='montana_practice' and '"course": "helena_cash"' in (r.get('context') or '')]
@@ -100,8 +143,12 @@ def render_helena_course(db):
     s=st.session_state['hc_hand']
     st.subheader(lesson)
     st.info(s['question'])
-    st.caption(f'Variation #{st.session_state["hc_serial"]} · {s["persona"]}. Specific opponent frequencies are not verified.')
+    st.caption(f'Variation #{st.session_state["hc_serial"]} · {s["persona"]} · Hypothetical hand. Opponent frequencies are not verified.')
     visual_table(s)
+    if s.get('pot') is not None:
+        x,y=st.columns(2)
+        x.metric('Gross pot',f'${s["pot"]}')
+        y.metric('Remaining to $800 cap',f'${800-s["pot"]}')
     st.markdown('**Your decision**')
     if st.session_state.get('hc_answer') is None:
         cols=st.columns(len(s['actions']))
@@ -110,7 +157,7 @@ def render_helena_course(db):
                 st.session_state['hc_answer']=action
                 if 'hc_session' not in st.session_state: st.session_state['hc_session']=db.start_session('montana_practice',{'course':'helena_cash'})
                 db.decision(st.session_state['hc_session'],'montana_practice',s['street'],action,
-                    {'course':'helena_cash','lesson':lesson,'scenario_id':s['id'],'persona':s['persona'],'hypothetical':True,'baseline':s['baseline'],'matches_baseline':action==s['baseline']},
+                    {'course':'helena_cash','lesson':lesson,'scenario_id':s['id'],'persona':s['persona'],'hypothetical':True,'baseline':s['baseline'],'matches_baseline':action==s['baseline'],'tag':s.get('tag'),'drill_type':s.get('drill_type')},
                     feedback=s['reason'])
                 st.rerun()
     else:
@@ -126,7 +173,31 @@ def render_helena_course(db):
         st.write('**Next practice:** Try a different opponent and compare whether the decision changes.')
         if st.button('Next random hand',type='primary',key='hc_next'):
             _new_hand(lesson); st.rerun()
+    with st.expander('My practice history'):
+        stats=course_review(db)
+        if not stats: st.caption('No recorded course decisions yet.')
+        for name,counts in stats.items():
+            st.write(f'{name}: {counts["attempts"]} decisions, {counts["baseline_matches"]} matched the illustrative baseline')
+        st.caption('Matching a baseline is not an EV score. Small samples cannot establish a strategic leak.')
     with st.expander('About these exercises and assumptions'):
         st.write('These are scenario-based decision drills, not a full-deck simulation or a replacement for the playable table. They use illustrative opponent profiles and stack labels. Pot odds are intentionally not calculated when required wager and contribution data are missing. They do not infer EV from wins or losses.')
         st.write('The A4s versus a $25 3-bet situation is inspired by a real observation; position, suits, stacks and other details in these exercises are hypothetical.')
         st.write('Saved decisions use the existing Montana practice source and carry a course tag so they can be filtered separately in the Leak Finder.')
+
+
+def course_review(db):
+    """Descriptive practice review, not a statistical leak classifier."""
+    import json
+    decisions=[]
+    for row in db.rows('decisions'):
+        try: context=json.loads(row.get('context') or '{}')
+        except (ValueError,TypeError): continue
+        if context.get('course')=='helena_cash':
+            decisions.append((row,context))
+    by_lesson={}
+    for row,ctx in decisions:
+        key=ctx.get('lesson','Uncategorized')
+        group=by_lesson.setdefault(key,{'attempts':0,'baseline_matches':0})
+        group['attempts']+=1
+        group['baseline_matches']+=int(bool(ctx.get('matches_baseline')))
+    return by_lesson
