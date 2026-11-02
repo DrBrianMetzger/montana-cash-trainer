@@ -7,6 +7,7 @@ from game_engine import Game
 from table_ui import render_table
 from table_experience import render_practice_shell
 from cash_lessons import render_cash_lessons
+from helena_course import render_helena_course
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
 
@@ -28,7 +29,7 @@ if not st.session_state.get('pb_db_loaded'):
 
 st.title('♠ Montana Cash Game Trainer')
 st.caption('Version 1.4 · poker-table experience, coaching journal, lessons, Pluribus and GTO+')
-sections=['Montana Practice Table','Cash Game Lessons','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
+sections=['Montana Practice Table','Cash Game Lessons','Helena Cash Course','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
     page=st.radio('Navigate',sections,key='navigation')
@@ -84,6 +85,8 @@ if page=='Montana Practice Table':
         st.caption('No automatic board runout, rake deduction, multiway opponent logic, or cap-overflow handling is claimed in this foundation.')
 elif page=='Cash Game Lessons':
     render_cash_lessons(db)
+elif page=='Helena Cash Course':
+    render_helena_course(db)
 elif page=='Pluribus Prediction Trainer':
     render_pluribus_trainer()
     # Original trainer writes session state on reveal; synchronize by stable hand/action key.
