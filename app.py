@@ -10,6 +10,7 @@ from cash_lessons import render_cash_lessons
 from helena_course import render_helena_course
 from pluribus_trainer import render_pluribus_trainer
 from gto_library import render_gto_library, KEY as GTO_KEY
+from solver_explorer import render_solver_explorer
 
 st.set_page_config(page_title='Montana Cash Game Trainer',page_icon='♠',layout='wide')
 db=TrainingDB()
@@ -28,7 +29,7 @@ if not st.session_state.get('pb_db_loaded'):
     st.session_state.pb_db_loaded=True
 
 st.title('♠ Montana Cash Game Trainer')
-st.caption('Version 1.4 · poker-table experience, coaching journal, lessons, Pluribus and GTO+')
+st.caption('Version 1.6 · solver explorer added to the existing training rooms')
 sections=['Montana Practice Table','Cash Game Lessons','Helena Cash Course','Pluribus Prediction Trainer','GTO+ Strategy Library','Opponent Lab — coming next','Leak Finder — coming next','Study Academy — coming later']
 with st.sidebar:
     st.header('Training rooms')
@@ -93,9 +94,13 @@ elif page=='Pluribus Prediction Trainer':
     for key,r in st.session_state.pb_results.items():
         db.save_prediction(st.session_state.pb_session,key,r['guess'],r['actual'],r['street'],{'hand':r.get('hand')})
 elif page=='GTO+ Strategy Library':
-    render_gto_library()
-    for item in st.session_state[GTO_KEY]: db.save_reference(item)
-    st.caption('References are mirrored to the shared SQLite database. GTO exact-practice decisions are not scored as EV loss without verified EV data.')
+    library_tab,solver_tab=st.tabs(['Screenshot Library','Solver Explorer'])
+    with library_tab:
+        render_gto_library()
+        for item in st.session_state[GTO_KEY]: db.save_reference(item)
+        st.caption('Screenshot references are stored separately from imported structured solver data.')
+    with solver_tab:
+        render_solver_explorer()
 elif page=='Opponent Lab — coming next':
     st.header('Opponent Lab · profile editor foundation')
     name=st.selectbox('Opponent',list(DEFAULTS))

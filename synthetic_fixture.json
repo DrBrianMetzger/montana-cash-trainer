@@ -1,0 +1,7 @@
+{
+  "schema":"mct.solver.v1", "id":"synthetic_demo",
+  "solver":{"name":"SYNTHETIC TEST ONLY","version":"0"},
+  "source":{"reference":"unit-test synthetic fixture, NOT solver output","verification":"synthetic_test"},
+  "assumptions":{"game_type":"Tournament chip EV","players":2,"positions":["BTN","BB"],"effective_stack_bb":25,"blinds":{"sb":0.5,"bb":1},"pot_bb":5,"rake":"none","preflop_action":"BTN open, BB call","betting_tree":"synthetic two actions"},
+  "nodes":[{"id":"flop_1","parent_id":null,"street":"Flop","board":["Qh","7d","2c"],"acting_position":"BB","actions":["Check","Bet 33%"],"pot_bb":5,"effective_stack_bb":23,"history":"BTN open, BB call, BB to act","combos":{"As Ks":{"weight":0.5,"frequencies":{"Check":75,"Bet 33%":25}},"Ac Kc":{"weight":1,"frequencies":{"Check":25,"Bet 33%":75},"equity":0.35,"ev_bb":{"Check":0.3,"Bet 33%":0.32}}}}]
+}

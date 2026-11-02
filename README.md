@@ -1,45 +1,49 @@
-# Helena Cash Game Course — incremental update
+# Montana Cash Game Trainer v1.6 — Solver Intelligence (Phase 1 + Phase 2 MVP)
 
-This package updates the **Helena Cash Course** within Montana Cash Game Trainer. It preserves the existing left navigation and the `render_table(db)` integration. This is a scenario drill, not a replacement for the multiway poker engine.
+## What is included
 
-## Install (GitHub web interface)
+- `solver_models.py`: 169 starting-hand classes, exact combos, blockers, Montana compatibility warning
+- `solver_import.py`: strict versioned JSON validation
+- `solver_repository.py`: independent SQLite storage, import/export backups
+- `range_matrix.py`: 13×13 action-frequency display and combo-weighted class summaries
+- `combo_explorer.py`: exact combo frequency, weight, optional equity and action EV
+- `solver_explorer.py`: Streamlit UI for importing and exploring stored solutions
+- `app.py`: reference integration into the existing **GTO+ Strategy Library** section
+- `tests/`: synthetic fixture and automated tests (not real solver output)
 
-1. Download and extract this ZIP.
-2. Open your existing Montana Cash Trainer GitHub repository.
-3. Upload `helena_course.py` in the same folder as `app.py`, replacing the old version.
-4. Your existing app.py **already has** the `Helena Cash Course` navigation item and `from helena_course import render_helena_course`. If that is what is deployed, **do not replace app.py**. A compatible reference copy is included only for comparison.
-5. Keep `table_ui.py`, `training_db.py`, `personas.py`, `pluribus_trainer.py`, `gto_library.py`, and the other working modules unchanged.
-6. Commit and refresh https://mctpoker.streamlit.app/.
+## Install (minimal and safe)
 
-If your app.py does NOT already have the course, add:
+1. **Back up your current GitHub `app.py`** before changing it. The provided `app.py` is based on the latest source available in this conversation (`helena-course-build/app.py`), not a verified live GitHub checkout. If your deployed `app.py` differs, merge the three small integration edits below instead of overwriting it.
+2. Upload these six new files into the repository root: `solver_models.py`, `solver_import.py`, `solver_repository.py`, `range_matrix.py`, `combo_explorer.py`, `solver_explorer.py`.
+3. In your current `app.py`, add the import:
+   `from solver_explorer import render_solver_explorer`
+4. Replace only the `elif page=='GTO+ Strategy Library':` block with:
 
 ```python
-from helena_course import render_helena_course
+elif page=='GTO+ Strategy Library':
+    library_tab, solver_tab = st.tabs(['Screenshot Library', 'Solver Explorer'])
+    with library_tab:
+        render_gto_library()
+        for item in st.session_state[GTO_KEY]:
+            db.save_reference(item)
+        st.caption('Screenshot references are stored separately from imported structured solver data.')
+    with solver_tab:
+        render_solver_explorer()
 ```
 
-Add `'Helena Cash Course'` to the sidebar `sections` list, then before the Pluribus branch:
+5. Commit. Open GTO+ Strategy Library > Solver Explorer. Your existing Streamlit dependency is sufficient; do **not** replace a more complete `requirements.txt` with the minimal example in this package.
+6. Download solver-library backups regularly. Local SQLite on Streamlit Community Cloud is ephemeral.
 
-```python
-elif page == 'Helena Cash Course':
-    render_helena_course(db)
-```
+## Supported import format
 
-## Changes
+The importer accepts **only** `mct.solver.v1` structured JSON. It does not decode native GTO+ `.gto2` files. The existing `.gto2` project files supplied in this conversation were not reverse engineered or imported. The fixture `tests/synthetic_fixture.json` documents the schema but is **synthetic**, not solver data, and the UI rejects its import.
 
-- Eight existing lessons, with two base situations each.
-- More varied visual card presentation through reproducible, consistent suit permutations, plus randomized modeled opponent labels and stack context. The same underlying strategic spot may recur; it is not an unlimited hand generator.
-- Featured **A4s versus tight 3-bettor** lesson with alternating preflop and flop decisions, and explicitly hypothetical position, effective stack, bet sizing and action history.
-- A4s pot calculations assume $1/$2 blinds, $8 open, $25 three-bet, blinds folding and no other contributions. Flop bets are either $18 or $53 into a $53 gross pot. Rake is part of gross pot, but actual rake-set-aside accounting is not simulated in these drills.
-- Visual table, large action buttons, optional gross pot and $800-cap remaining display, and decision explanations.
-- Course practice history grouped by lesson; matches to illustrative coaching baseline are **not EV scores** or proof of leaks.
-- Existing decision records are saved to the `decisions` table with `context.course='helena_cash'`.
+For real solutions, obtain a documented structured export or transcribe independently verified exact-combination values with full assumptions and source provenance into this schema. The `source.verification` value is user-supplied provenance, not cryptographic or third-party authentication. All percentages are in 0–100 units; equity is in 0–1 units; EV is in BB; range weights are in 0–1 units.
 
-## Scope
+The matrix is a readable MVP, not yet a segmented frequency heatmap. It shows the most frequent action in each populated hand class. Exact combinations appear in a table below. Tree navigation is limited to listing stored child IDs. Guess the Solver, filters, editable opponent comparisons, and Montana-specific solving are future phases.
 
-This increment does **not** implement the 30–100 hand cold-deck simulator, full betting engine, accurate session bankroll/rake/tip accounting, statistical leak detection, or verified solver EV. These require more complete engine integration and should not be simulated using invented hand outcomes.
+## Testing
 
-## Tests
+From the project directory: `python -m unittest discover -s tests -v`
 
-`pytest -q test_helena_course.py` (five tests passed during package creation).
-
-No new Python dependencies beyond those already used by your app.
+Eight tests passed in the packaged source. This package has not been deployed or end-to-end tested against your current live repository.
